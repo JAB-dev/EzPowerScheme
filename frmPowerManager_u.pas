@@ -1,0 +1,115 @@
+unit frmPowerManager_u;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs,consolecontrol, Vcl.StdCtrls,threading;
+
+type
+  TfrmPowerSchemeManager = class(TForm)
+    mmoOutput: TMemo;
+    cbbOptions: TComboBox;
+    lblActiveScheme: TLabel;
+    btnSwapToSelected: TButton;
+    procedure FormCreate(Sender: TObject);
+    procedure btnSwapToSelectedClick(Sender: TObject);
+    procedure cbbOptionsChange(Sender: TObject);
+  private
+    { Private declarations }
+    arrPowerGuid:array of string;
+    arrPowerName:array of string;
+    console:TJABConsole;//dumb but it works
+    iActiveScheme:integer;
+      public
+    { Public declarations }
+    function CountSchemes(pinput:string):integer;
+
+  end;
+
+var
+  frmPowerSchemeManager: TfrmPowerSchemeManager;
+
+implementation
+
+{$R *.dfm}
+
+procedure TfrmPowerSchemeManager.btnSwapToSelectedClick(Sender: TObject);
+begin
+  iActiveScheme:= cbbOptions.ItemIndex+1;
+  mmoOutput.Lines.Add(console.GetDosOutput('powercfg /setactive'+arrPowerGuid[cbbOptions.ItemIndex+1] ,GetCurrentDir));
+  lblActiveScheme.Caption:='The currently running scheme is titled: '+arrPowerName[iActiveScheme];
+end;
+
+procedure TfrmPowerSchemeManager.cbbOptionsChange(Sender: TObject);
+begin
+//  ShowMessage(arrpowerguid[cbbOptions.ItemIndex+1]);
+end;
+
+function TfrmPowerSchemeManager.CountSchemes(pinput: string): integer;
+var
+k:integer;
+begin
+  k:=0;
+  TParallel.&For(1,length(pinput),     //we multitask here for perfomance
+  procedure(i:integer)
+  begin
+    if pinput[i]=':' then
+    begin
+      k:=k+1;
+    end;
+  end
+  );
+  result:=k;
+end;
+
+procedure TfrmPowerSchemeManager.FormCreate(Sender: TObject);
+var
+sOutput:string;
+k,iSchemeCount,ipos:integer;
+begin
+//Existing Power Schemes (* Active)
+//----------------------------------- 36 char long
+//Power Scheme GUID: 1b61c596-1e6f-4fd2-ac99-c56ed075abad  (Ultimate Performance)
+//Power Scheme GUID: 381b4222-f694-41f0-9685-ff5bb260df2e  (Balanced)
+//Power Scheme GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (High performance) *
+//Power Scheme GUID: a1841308-3541-4fab-bc81-f71556f20b4a  (Power saver)
+//
+   soutput:=( console.GetDosOutput('powercfg /list',GetCurrentDir));
+
+   iSchemeCount:=CountSchemes(sOutput);//how many are there? count the colons
+   SetLength(arrPowerGuid,iSchemeCount);
+   SetLength(arrPowerName,iSchemeCount);
+
+   //Remove that start bit
+   ipos:=pos('-----------------------------------',sOutput);
+   delete(sOutput,1,ipos+34);
+    //Start is now removed
+  for k := 1 to iSchemeCount do
+  begin
+    ipos:=pos(':',sOutput);
+    arrPowerGuid[k]:=copy(soutput,ipos+1,37);
+
+    ipos:=pos('(',sOutput);
+    arrPowerName[k]:=copy(soutput,ipos,pos(')',sOutput)-ipos+1);
+
+    ipos:=pos(')',sOutput);
+
+
+    if sOutput[ipos+2]='*' then
+    begin
+      iActiveScheme:=k;
+      Delete(soutput,1,ipos+3);
+    end else
+    begin
+      Delete(soutput,1,ipos);
+    end;
+
+    cbbOptions.Items.Add(arrPowername[k]);
+
+  end;
+  cbbOptions.ItemIndex:=iActiveScheme-1;  //Combo starts at 0, I count from 1
+  lblActiveScheme.Caption:='The currently running scheme is titled: '+arrPowerName[iActiveScheme];
+end;
+
+end.
